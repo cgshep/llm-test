@@ -41,6 +41,8 @@ def build_providers(
         "claude": "ANTHROPIC_API_KEY",
         "gemini": "GOOGLE_API_KEY",
         "grok": "XAI_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "ollama": "OLLAMA_ENABLED",
     }
     result: dict[str, Provider] = {}
     for name, cls in PROVIDERS.items():
@@ -50,7 +52,11 @@ def build_providers(
             continue
         if enabled is not None and name not in enabled:
             continue
-        result[name] = cls(api_key=api_key, model=models.get(name))
+        if name == "ollama":
+            base_url = keys.get("OLLAMA_BASE_URL") or None
+            result[name] = cls(model=models.get(name), base_url=base_url)
+        else:
+            result[name] = cls(api_key=api_key, model=models.get(name))
     return result
 
 

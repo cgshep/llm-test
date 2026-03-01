@@ -23,18 +23,24 @@ DEFAULT_MODELS: dict[str, str] = {
     "claude": "claude-sonnet-4-20250514",
     "gemini": "gemini-2.0-flash",
     "grok": "grok-3-latest",
+    "groq": "llama-3.3-70b-versatile",
+    "ollama": "llama3.2",
 }
 PROVIDER_LABELS: dict[str, str] = {
     "chatgpt": "ChatGPT",
     "claude": "Claude",
     "gemini": "Gemini",
     "grok": "Grok",
+    "groq": "Groq",
+    "ollama": "Ollama",
 }
 KEY_ENV_NAMES: dict[str, str] = {
     "chatgpt": "OPENAI_API_KEY",
     "claude": "ANTHROPIC_API_KEY",
     "gemini": "GOOGLE_API_KEY",
     "grok": "XAI_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "ollama": "OLLAMA_ENABLED",
 }
 
 
@@ -57,6 +63,10 @@ async def index():
     api_keys: dict[str, str] = {
         env: os.getenv(env, "") for env in KEY_ENV_NAMES.values()
     }
+    # Also load Ollama base URL from env
+    api_keys["OLLAMA_BASE_URL"] = os.getenv(
+        "OLLAMA_BASE_URL", "http://localhost:11434/v1"
+    )
     enabled: dict[str, bool] = {
         name: bool(api_keys.get(KEY_ENV_NAMES[name])) for name in PROVIDERS
     }
@@ -95,6 +105,8 @@ async def index():
         ui.label("Keys are loaded from your .env file by default. "
                  "Override them here for this session.").classes("text-xs text-gray-400")
         for pname, env_key in KEY_ENV_NAMES.items():
+            if pname == "ollama":
+                continue  # Ollama gets its own section below
             ui.input(
                 label=f"{PROVIDER_LABELS[pname]} ({env_key})",
                 value=api_keys.get(env_key, ""),
@@ -102,6 +114,23 @@ async def index():
                 password_toggle_button=True,
                 on_change=lambda e, ek=env_key: api_keys.update({ek: e.value}),
             ).classes("w-full")
+
+        ui.label("Ollama (Local)").classes("text-lg font-semibold mt-4")
+        ui.label("Run 'ollama serve' locally, then enable here. No API key needed.").classes(
+            "text-xs text-gray-400"
+        )
+        ui.switch(
+            "Enable Ollama",
+            value=bool(api_keys.get("OLLAMA_ENABLED")),
+            on_change=lambda e: api_keys.update(
+                {"OLLAMA_ENABLED": "enabled" if e.value else ""}
+            ),
+        )
+        ui.input(
+            label="Ollama Base URL",
+            value=api_keys.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            on_change=lambda e: api_keys.update({"OLLAMA_BASE_URL": e.value}),
+        ).classes("w-full")
 
         ui.label("Models").classes("text-lg font-semibold mt-4")
         for pname in PROVIDERS:
@@ -158,7 +187,9 @@ async def index():
                 )
                 has_key = bool(api_keys.get(KEY_ENV_NAMES[pname]))
                 if not has_key:
-                    sw.tooltip("No API key configured — add it in Settings")
+                    tip = ("Not enabled — enable it in Settings" if pname == "ollama"
+                           else "No API key configured — add it in Settings")
+                    sw.tooltip(tip)
                 provider_switches[pname] = sw
 
             ui.space()
